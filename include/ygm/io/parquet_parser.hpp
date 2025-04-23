@@ -27,9 +27,12 @@
 #include <parquet/stream_reader.h>
 #include <parquet/types.h>
 
-namespace stdfs = std::filesystem;
-
 namespace ygm::io {
+
+namespace {
+namespace stdfs = std::filesystem;
+}
+
 namespace detail {
 
 // List of supported Parquet::Type types
@@ -72,6 +75,161 @@ std::ostream &operator<<(std::ostream &os, const parquet_data_type &t) {
   }
   return os;
 }
+
+namespace fs_utility {
+
+/// @brief Returns a list of regular file paths from the given search paths.
+/// @param search_paths A list of paths to search.
+/// @param recursive If true, search recursively in directories.
+/// @param remove_duplicates If true, remove duplicate paths.
+/// @param good_file_checker User-defined function to check if the file is good.
+/// If the function returns false, the file is removed from the list. If the
+/// function is not provided, all files are considered good.
+/// @return A list of regular file paths.
+inline std::vector<stdfs::path> get_file_paths(
+    const std::vector<stdfs::path> &search_paths, const bool recursive = true,
+    const bool                              remove_duplicates = true,
+    const std::function<bool(stdfs::path)> &good_file_checker = nullptr) {
+  std::vector<stdfs::path> file_paths;
+  for (const auto &path : search_paths) {
+    if (path.empty()) {
+      continue;
+    }
+    // Memo: is_regular_file and is_directory works with symlinks
+    const auto status = stdfs::status(path);
+    if (stdfs::is_regular_file(status)) {
+      file_paths.push_back(path);
+    } else if (stdfs::is_directory(status)) {
+      // If the path is a directory, add all files in the directory
+      const auto opt = stdfs::directory_options::follow_directory_symlink |
+                       stdfs::directory_options::skip_permission_denied;
+      if (recursive) {
+        // Recursively add all files in the directory
+        for (const auto &entry :
+             stdfs::recursive_directory_iterator(path, opt)) {
+          if (stdfs::is_regular_file(entry.status())) {
+            file_paths.push_back(entry.path());
+          }
+        }
+      } else {
+        // Add all files in the directory
+        for (const auto &entry : stdfs::directory_iterator(path, opt)) {
+          if (stdfs::is_regular_file(entry.status())) {
+            file_paths.push_back(entry.path());
+          }
+        }
+      }
+    }
+  }
+
+  if (remove_duplicates) {
+    std::sort(file_paths.begin(), file_paths.end());
+    file_paths.erase(std::unique(file_paths.begin(), file_paths.end()),
+                     file_paths.end());
+  }
+
+  // Finally, filter out the files that are not 'good'.
+  if (good_file_checker) {
+    file_paths.erase(std::remove_if(file_paths.begin(), file_paths.end(),
+                                    [&](const stdfs::path &file_path) {
+                                      return !good_file_checker(file_path);
+                                    }),
+                     file_paths.end());
+  }
+
+  return file_paths;
+}
+
+/// @brief Returns a list of regular file paths from
+/// the given search paths. This function assumes that all ranks have the same
+/// global search paths and that all ranks on the same node have the same local
+/// search paths.
+/// @param string_paths A list of paths to search.
+/// @param comm A reference to a YGM communicator.
+/// @param recursive If true, search recursively in directories.
+/// @param remove_duplicates If true, remove duplicate paths.
+/// @param good_file_checker User-defined function to check if the file is good.
+/// If the function is not provided, all files are considered good.
+/// @param local_prefix A prefix for local paths.
+/// @return A pair of vectors containing local and global paths.
+/// Local paths are shared among ranks on the same node.
+/// Global paths are shared among all ranks.
+inline std::pair<std::vector<stdfs::path>, std::vector<stdfs::path>>
+get_file_paths(
+    const std::vector<std::string> &string_paths, ygm::comm &comm,
+    const bool recursive = true, const bool remove_duplicates = true,
+    const std::function<bool(stdfs::path)> &good_file_checker = nullptr,
+    const std::string                      &local_prefix      = "local://") {
+  // First, find file paths only on the local and global root ranks.
+  static std::vector<std::string> master_local_paths;
+  static std::vector<std::string> master_global_paths;
+  master_local_paths.clear();
+  master_global_paths.clear();
+  for (const auto &string_path : string_paths) {
+    if (string_path.starts_with(local_prefix)) {
+      if (comm.layout().local_id() == 0) {
+        // Remove the local prefix
+        stdfs::path path(string_path.substr(local_prefix.length()));
+        const auto  regular_file_paths = get_file_paths(
+            {path}, recursive, remove_duplicates, good_file_checker);
+        for (const auto &p : regular_file_paths) {
+          master_local_paths.push_back(p.string());
+        }
+      }
+    } else {
+      if (comm.rank0()) {
+        const auto regular_file_paths =
+            get_file_paths({stdfs::path(string_path)}, recursive,
+                           remove_duplicates, good_file_checker);
+        for (const auto &p : regular_file_paths) {
+          master_global_paths.push_back(p.string());
+        }
+      }
+    }
+  }
+
+  // Distribute the paths to other ranks.
+  static std::vector<stdfs::path> local_paths;
+  static std::vector<stdfs::path> global_paths;
+  local_paths.clear();
+  global_paths.clear();
+  comm.cf_barrier();
+
+  // Distribute the node local paths to all ranks on the same node.
+  if (comm.layout().local_id() == 0) {
+    for (const auto r : comm.layout().local_ranks()) {
+      comm.async(
+          r,
+          [](const auto &paths) {
+            for (const auto &p : paths) {
+              local_paths.push_back(stdfs::path(p));
+            }
+          },
+          master_local_paths);
+    }
+  }
+
+  // Distribute the global paths to all ranks.
+  if (comm.rank0()) {
+    comm.async_bcast(
+        [](const auto &paths) {
+          for (const auto &p : paths) {
+            global_paths.push_back(stdfs::path(p));
+          }
+        },
+        master_global_paths);
+  }
+  comm.barrier();
+
+  // Sort the paths to make sure the order is the same on all ranks.
+  std::sort(local_paths.begin(), local_paths.end());
+  std::sort(global_paths.begin(), global_paths.end());
+
+  return {local_paths, global_paths};
+}
+
+}  // namespace fs_utility
+
 }  // namespace detail
 
 // Parquet file parser
@@ -92,7 +250,8 @@ class parquet_parser {
     detail::parquet_data_type type;
     std::string               name;
     // If true, this parser can not handle this column data.
-    // This can happen due to unsupported data type or non-flat column structure.
+    // This can happen due to unsupported data type or non-flat column
+    // structure.
     bool unsupported{false};
   };
 
@@ -105,20 +264,25 @@ class parquet_parser {
 
   ~parquet_parser() { m_comm.barrier(); }
 
-  // Returns a list of column schema (simpler version).
-  // The order of the schema is the same as the order of Parquet column
-  // indices (ascending order).
-  // This function assumes that all files have the same schema.
-  const std::vector<column_schema_type> &get_schema() { return m_col_schema; }
+  /// @brief Returns a list of column schema (simpler version).
+  /// The order of the schema is the same as the order of Parquet column
+  /// indices (ascending order).
+  /// This function assumes that all files have the same schema.
+  /// Returns an empty vector if there is no file the rank can read.
+  const std::vector<column_schema_type> &get_schema() const {
+    return m_col_schema;
+  }
 
-  // Return full Parquet file schema directly returned by the Parqet reader as a
-  // string. This function assumes that all files have the same schema.
-  const std::string &schema_to_string() { return m_schema_string; }
+  // @brief Return full Parquet file schema directly returned by the Parqet
+  // reader as a string. This function assumes that all files have the same
+  // schema. Returns an empty string if there is no file the rank can read.
+  const std::string &schema_to_string() const { return m_schema_string; }
 
-  /// Read all rows and call the function for each row.
-  /// fn is called with a std::vector<parquet_type_variant>.
+  /// @brief Read all rows and call the function for each row.
+  /// @param fn  A function to call for every row.
+  /// Expected signature is void(const std::vector<parquet_type_variant>&).
   /// The value of an unsupported column is set to std::monostate.
-  /// num_rows: Max number of rows the rank to read.
+  /// @param num_rows Max number of rows the rank to read.
   template <typename Function>
     requires std::invocable<Function, const std::vector<parquet_type_variant> &>
   void for_all(Function     fn,
@@ -126,7 +290,7 @@ class parquet_parser {
     read_parquet_files(fn, num_rows);
   }
 
-  /// for_all(), read only the specified columns.
+  /// @brief for_all(), read only the specified columns.
   template <typename Function>
     requires std::invocable<Function, const std::vector<parquet_type_variant> &>
   void for_all(const std::vector<std::string> &columns, Function fn,
@@ -134,28 +298,34 @@ class parquet_parser {
     read_parquet_files(fn, num_rows, columns);
   }
 
-  // Return the number of total files
-  size_t num_files() { return m_paths.size(); }
+  /// @brief Return the total number of files
+  size_t num_files() const { return m_num_files; }
 
-  // Return the number of rows in all files
-  size_t num_rows() { return m_num_total_rows; }
+  /// @brief Return the number of rows in all files
+  size_t num_rows() const { return m_num_rows; }
 
  private:
   // Open Parquet files and read schema.
   void init(const std::vector<std::string> &stringpaths,
             const bool                      recursive = false) {
     clear();
-    check_paths(stringpaths, recursive);
-    read_file_schema();
+    find_paths(stringpaths, recursive);
+    if (!m_nlocal_paths.empty()) {
+      read_file_schema(m_nlocal_paths.front());
+    } else if (!m_global_paths.empty()) {
+      read_file_schema(m_global_paths.front());
+    }
     count_all_rows();
     m_comm.barrier();
   }
 
   // Clean up the internal state.
   void clear() {
-    m_paths.clear();
+    m_global_paths.clear();
+    m_nlocal_paths.clear();
     m_col_schema.clear();
-    m_num_total_rows = 0;
+    m_num_files = 0;
+    m_num_rows  = 0;
   }
 
   /// Count the number of lines in a file.
@@ -175,12 +345,17 @@ class parquet_parser {
 
   void count_all_rows() {
     size_t total_rows = 0;
-    for (size_t i = 0; i < m_paths.size(); ++i) {
-      if (is_owner(i)) {
-        total_rows += get_num_rows(m_paths[i]);
+    for (size_t i = 0; i < m_nlocal_paths.size(); ++i) {
+      if (is_local_owner(i)) {
+        total_rows += get_num_rows(m_nlocal_paths[i]);
       }
     }
-    m_num_total_rows = m_comm.all_reduce_sum(total_rows);
+    for (size_t i = 0; i < m_global_paths.size(); ++i) {
+      if (is_owner(i)) {
+        total_rows += get_num_rows(m_global_paths[i]);
+      }
+    }
+    m_num_rows = m_comm.all_reduce_sum(total_rows);
   }
 
   /// Open a Parquet file and return a ParquetFileReader object.
@@ -198,72 +373,20 @@ class parquet_parser {
     return parquet::ParquetFileReader::Open(input_file);
   }
 
-  /**
-   * @brief Check readability of paths and iterates through directories
-   *
-   * @param stringpaths
-   * @param recursive
-   */
-  void check_paths(const std::vector<std::string> &stringpaths,
-                   bool                            recursive) {
-    if (m_comm.rank0()) {
-      std::vector<std::string> good_stringpaths;
+  void find_paths(const std::vector<std::string> &str_paths, bool recursive) {
+    std::tie(m_nlocal_paths, m_global_paths) =
+        detail::fs_utility::get_file_paths(
+            str_paths, m_comm, recursive, true,
+            [this](const stdfs::path &p) { return is_file_good(p); });
 
-      for (const std::string &strp : stringpaths) {
-        stdfs::path p(strp);
-        if (stdfs::exists(p)) {
-          if (stdfs::is_regular_file(p)) {
-            if (is_file_good(p)) {
-              good_stringpaths.push_back(p.string());
-            }
-          } else if (stdfs::is_directory(p)) {
-            if (recursive) {
-              //
-              // If a directory & user requested recursive
-              const std::filesystem::recursive_directory_iterator end;
-              for (std::filesystem::recursive_directory_iterator itr{p};
-                   itr != end; itr++) {
-                if (stdfs::is_regular_file(itr->path())) {
-                  if (is_file_good(itr->path())) {
-                    good_stringpaths.push_back(itr->path().string());
-                  }
-                }
-              }  // for
-            } else {
-              //
-              // If a directory & user requested recursive
-              const std::filesystem::directory_iterator end;
-              for (std::filesystem::directory_iterator itr{p}; itr != end;
-                   itr++) {
-                if (stdfs::is_regular_file(itr->path())) {
-                  if (is_file_good(itr->path())) {
-                    good_stringpaths.push_back(itr->path().string());
-                  }
-                }
-              }  // for
-            }
-          }
-        }
-      }  // for
+    // Sort the paths to make sure the order is the same on all ranks.
+    std::sort(m_nlocal_paths.begin(), m_nlocal_paths.end());
+    std::sort(m_global_paths.begin(), m_global_paths.end());
 
-      //
-      // Remove duplicate paths
-      std::sort(good_stringpaths.begin(), good_stringpaths.end());
-      good_stringpaths.erase(
-          std::unique(good_stringpaths.begin(), good_stringpaths.end()),
-          good_stringpaths.end());
-
-      // Broadcast paths to all ranks
-      m_comm.async_bcast(
-          [](auto parquet_reader_ptr, const auto &stringpaths_vec) {
-            for (const auto &stringpath : stringpaths_vec) {
-              parquet_reader_ptr->m_paths.push_back(stdfs::path(stringpath));
-            }
-          },
-          pthis, good_stringpaths);
-    }
-
-    m_comm.barrier();
+    const size_t gcnt = m_comm.rank0() ? m_global_paths.size() : 0;
+    const size_t lcnt =
+        m_comm.layout().local_id() == 0 ? m_nlocal_paths.size() : 0;
+    m_num_files = m_comm.all_reduce_sum(lcnt) + m_comm.all_reduce_sum(gcnt);
   }
 
   /**
@@ -283,11 +406,10 @@ class parquet_parser {
     return true;
   }
 
-  void read_file_schema() {
-    auto reader = open_file(m_paths[0]);
+  void read_file_schema(const stdfs::path &path) {
+    auto reader = open_file(path);
     if (reader == nullptr) {
-      throw std::runtime_error("Failed to open the file: " +
-                               m_paths[0].string());
+      throw std::runtime_error("Failed to open the file: " + path.string());
     }
 
     // Get the file schema
@@ -322,15 +444,26 @@ class parquet_parser {
   template <typename Function>
     requires std::invocable<Function, const std::vector<parquet_type_variant> &>
   void read_parquet_files(
-      Function                                fn,
-      const size_t max_num_rows_to_read,
+      Function fn, const size_t max_num_rows_to_read,
       std::optional<std::vector<std::string>> columns = std::nullopt) {
     size_t count_rows = 0;
-    for (size_t i = 0; i < m_paths.size(); ++i) {
+    for (size_t i = 0; i < m_nlocal_paths.size(); ++i) {
+      if (is_local_owner(i)) {
+        assert(max_num_rows_to_read >= count_rows);
+        count_rows += read_parquet_file(
+            m_nlocal_paths[i], fn, max_num_rows_to_read - count_rows, columns);
+      }
+      assert(count_rows <= max_num_rows_to_read);
+      if (count_rows >= max_num_rows_to_read) {
+        break;
+      }
+    }
+
+    for (size_t i = 0; i < m_global_paths.size(); ++i) {
       if (is_owner(i)) {
         assert(max_num_rows_to_read >= count_rows);
         count_rows += read_parquet_file(
-            m_paths[i], fn, max_num_rows_to_read - count_rows, columns);
+            m_global_paths[i], fn, max_num_rows_to_read - count_rows, columns);
       }
       assert(count_rows <= max_num_rows_to_read);
       if (count_rows >= max_num_rows_to_read) {
@@ -339,8 +472,13 @@ class parquet_parser {
     }
   }
 
-  bool is_owner(const size_t item_ID) {
-    return m_comm.rank() == (item_ID % m_comm.size());
+  bool is_owner(const size_t item_id) const {
+    return m_comm.rank() == (item_id % m_comm.size());
+  }
+
+  bool is_local_owner(const size_t item_id) const {
+    return m_comm.layout().local_id() ==
+           (item_id % m_comm.layout().local_size());
   }
 
   /// Read a parquet file and call a function for each row.
@@ -349,7 +487,7 @@ class parquet_parser {
     requires std::invocable<Function, const std::vector<parquet_type_variant> &>
   size_t read_parquet_file(
       const stdfs::path &file_path, Function fn,
-      const size_t max_num_rows_to_read,
+      const size_t                            max_num_rows_to_read,
       std::optional<std::vector<std::string>> columns_to_read = std::nullopt) {
     size_t num_read_rows = 0;
     try {
@@ -392,7 +530,7 @@ class parquet_parser {
       // Get the number of RowGroups
       const size_t num_row_groups = file_metadata->num_row_groups();
 
-       // Iterate over all the RowGroups in the file
+      // Iterate over all the RowGroups in the file
       for (int r = 0; r < num_row_groups; ++r) {
         std::shared_ptr<parquet::RowGroupReader> row_group_reader =
             parquet_reader->RowGroup(r);
@@ -458,7 +596,7 @@ class parquet_parser {
         // Finally, call the user function for each row
         for (size_t i = 0; i < num_rows; ++i) {
           if (num_read_rows == max_num_rows_to_read) {
-            return max_num_rows_to_read; // Read enough rows
+            return max_num_rows_to_read;  // Read enough rows
           }
           assert(num_read_rows < max_num_rows_to_read);
 
@@ -530,9 +668,11 @@ class parquet_parser {
 
   ygm::comm                      &m_comm;
   ygm::ygm_ptr<self_type>         pthis;
-  std::vector<stdfs::path>        m_paths;
+  std::vector<stdfs::path>        m_nlocal_paths;
+  std::vector<stdfs::path>        m_global_paths;
   std::vector<column_schema_type> m_col_schema;
   std::string                     m_schema_string;
-  size_t                          m_num_total_rows{0};
+  size_t                          m_num_files{0};  // #of all files
+  size_t                          m_num_rows{0};   // #of all rows
 };
 }  // namespace ygm::io
