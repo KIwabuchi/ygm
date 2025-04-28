@@ -193,7 +193,8 @@ function(install_arrow_parquet)
 endfunction()
 
 # Link Arrow and Parquet to the target
-# This function must be called after find_or_install_arrow_parquet().
+# This function must be called after a function that sets up required variables
+# e.g., install_arrow_parquet().
 function(link_arrow_parquet target)
     if (Arrow_FOUND AND Parquet_FOUND)
         target_link_libraries(${target} PUBLIC
