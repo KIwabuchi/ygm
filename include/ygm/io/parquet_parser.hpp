@@ -5,13 +5,25 @@
 
 #pragma once
 
+#include <algorithm>
+#include <array>
 #include <cassert>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
+#include <limits>
+#include <memory>
+#include <numeric>
+#include <optional>
 #include <regex>
+#include <stdexcept>
 #include <string>
+#include <string_view>
+#include <type_traits>
 #include <unordered_map>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #include <ygm/comm.hpp>
@@ -298,6 +310,16 @@ class parquet_parser {
     read_parquet_files(fn, num_rows, columns);
   }
 
+  std::optional<std::vector<parquet_type_variant>> peek() {
+    std::vector<parquet_type_variant> row;
+    read_parquet_files(
+        [&row](const std::vector<parquet_type_variant> &r) { row = r; }, 1);
+    if (row.empty()) {
+      return std::nullopt;
+    }
+    return row;
+  }
+
   /// @brief Return the total number of files
   size_t num_files() const { return m_num_files; }
 
@@ -330,17 +352,10 @@ class parquet_parser {
 
   /// Count the number of lines in a file.
   static size_t get_num_rows(const stdfs::path &input_filename) {
-    std::shared_ptr<arrow::io::ReadableFile> input_file;
-    PARQUET_ASSIGN_OR_THROW(input_file,
-                            arrow::io::ReadableFile::Open(input_filename));
-    std::unique_ptr<parquet::ParquetFileReader> parquet_file_reader =
-        parquet::ParquetFileReader::Open(input_file);
-
+    auto parquet_file_reader = open_file(input_filename);
     std::shared_ptr<parquet::FileMetaData> file_metadata =
         parquet_file_reader->metadata();
-    const size_t num_rows = file_metadata->num_rows();
-
-    return num_rows;
+    return file_metadata->num_rows();
   }
 
   void count_all_rows() {
@@ -360,17 +375,23 @@ class parquet_parser {
 
   /// Open a Parquet file and return a ParquetFileReader object.
   static std::unique_ptr<parquet::ParquetFileReader> open_file(
-      const stdfs::path &input_filename) {
+      const stdfs::path &input_path, bool throw_on_error = true) {
     // Open the Parquet file
-    std::shared_ptr<arrow::io::ReadableFile> input_file;
+    std::shared_ptr<arrow::io::ReadableFile>    input_file;
+    std::unique_ptr<parquet::ParquetFileReader> parquet_reader;
     try {
       PARQUET_ASSIGN_OR_THROW(input_file,
-                              arrow::io::ReadableFile::Open(input_filename));
+                              arrow::io::ReadableFile::Open(input_path));
+      parquet_reader = parquet::ParquetFileReader::Open(input_file);
     } catch (...) {
+      std::cerr << "Error opening Parquet file: " << input_path << std::endl;
+      if (throw_on_error) {
+        throw;
+      }
       return nullptr;
     }
     // Create a ParquetFileReader object
-    return parquet::ParquetFileReader::Open(input_file);
+    return parquet_reader;
   }
 
   void find_paths(const std::vector<std::string> &str_paths, bool recursive) {
@@ -389,13 +410,7 @@ class parquet_parser {
     m_num_files = m_comm.all_reduce_sum(lcnt) + m_comm.all_reduce_sum(gcnt);
   }
 
-  /**
-   * @brief Checks if file is readable
-   *
-   * @param p
-   * @return true
-   * @return false
-   */
+  /// Check if the file is legit.
   bool is_file_good(const stdfs::path &p) {
     // skip hidden files
     if (p.filename().string()[0] == '.') {
@@ -408,16 +423,9 @@ class parquet_parser {
     }
 
     // Make sure the file is openable
-    std::shared_ptr<arrow::io::ReadableFile> input_file;
-    try {
-      PARQUET_ASSIGN_OR_THROW(input_file, arrow::io::ReadableFile::Open(p));
-      std::unique_ptr<parquet::ParquetFileReader> parquet_reader =
-          parquet::ParquetFileReader::Open(input_file);
-    } catch (...) {
-      return false;
-    }
-
-    return true;
+    const bool throw_on_error = false;
+    const bool openable       = open_file(p, throw_on_error) != nullptr;
+    return openable;
   }
 
   void read_file_schema(const stdfs::path &path) {
