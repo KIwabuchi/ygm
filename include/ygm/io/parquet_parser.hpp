@@ -310,6 +310,8 @@ class parquet_parser {
     read_parquet_files(fn, num_rows, columns);
   }
 
+  /// @brief Return the first row assigned to the rank.
+  /// Return nullopt if no row was assgined.
   std::optional<std::vector<parquet_type_variant>> peek() {
     std::vector<parquet_type_variant> row;
     read_parquet_files(
