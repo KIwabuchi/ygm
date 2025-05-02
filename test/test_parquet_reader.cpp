@@ -67,23 +67,57 @@ int main(int argc, char** argv) {
 
     // For all with column names
     count_rows = 0;
-    parquetp.for_all({"int64_col", "float_col", "string_col", "int64_col"},
-                     [&expected_data_table, &count_rows](const auto& read_values) {
-                       const auto int64_col = std::get<int64_t>(read_values[0]);
-                       const auto float_col = std::get<float>(read_values[1]);
-                       const auto key = std::get<std::string>(read_values[2]);
-                       const auto int64_col2 =
-                           std::get<int64_t>(read_values[3]);
+    parquetp.for_all(
+        {"int64_col", "float_col", "string_col", "int64_col"},
+        [&expected_data_table, &count_rows](const auto& read_values) {
+          const auto int64_col  = std::get<int64_t>(read_values[0]);
+          const auto float_col  = std::get<float>(read_values[1]);
+          const auto key        = std::get<std::string>(read_values[2]);
+          const auto int64_col2 = std::get<int64_t>(read_values[3]);
 
-                       const auto& expected = expected_data_table[key];
-                       YGM_ASSERT_RELEASE(int64_col == expected.int64_col);
-                       YGM_ASSERT_RELEASE(float_col == expected.float_col);
-                       YGM_ASSERT_RELEASE(int64_col2 == expected.int64_col);
+          const auto& expected = expected_data_table[key];
+          YGM_ASSERT_RELEASE(int64_col == expected.int64_col);
+          YGM_ASSERT_RELEASE(float_col == expected.float_col);
+          YGM_ASSERT_RELEASE(int64_col2 == expected.int64_col);
 
-                       ++count_rows;
-                     });
+          ++count_rows;
+        });
     YGM_ASSERT_RELEASE(world.all_reduce_sum(count_rows) == 10);
-  }
 
+    // Test peek()
+    {
+      ygm::io::parquet_parser parquetp(world, {dir_name});
+      const auto              row_opt = parquetp.peek();
+      if (row_opt.has_value()) {
+        const auto& row = *row_opt;
+        YGM_ASSERT_RELEASE(row.size() == 6);
+        auto&       key      = std::get<std::string>(row[0]);
+        const auto& expected = expected_data_table[key];
+        YGM_ASSERT_RELEASE(std::get<int32_t>(row[1]) == expected.int32_col);
+        YGM_ASSERT_RELEASE(std::get<int64_t>(row[2]) == expected.int64_col);
+        YGM_ASSERT_RELEASE(std::get<float>(row[3]) == expected.float_col);
+        YGM_ASSERT_RELEASE(std::get<double>(row[4]) == expected.double_col);
+        YGM_ASSERT_RELEASE(std::get<bool>(row[5]) == expected.bool_col);
+      }
+      world.cf_barrier();
+
+      // Make sure every processes read diffrent row or nothing
+      {
+        static std::vector<std::string> buf;
+        const auto&                     row = *row_opt;
+        std::string                     key;
+        if (row_opt.has_value()) {
+          key = std::get<std::string>(row[0]);
+        } else {
+          key = std::to_string(world.rank());  // Dummy unique key
+        }
+        world.async(0, [](const auto& val) { buf.push_back(val); }, key);
+        world.barrier();
+
+        std::unordered_set<std::string> unique_values(buf.begin(), buf.end());
+        YGM_ASSERT_RELEASE(unique_values.size() == buf.size());
+      }
+    }
+  }
   return 0;
 }

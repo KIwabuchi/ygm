@@ -40,22 +40,49 @@ int main(int argc, char** argv) {
   world.cout0() << parquetp.schema_to_string() << std::endl;
 
   world.cout0() << "#of Rows: " << parquetp.num_rows() << std::endl;
+  world.cout0() << std::endl;
+  world.cf_barrier();
+
+  // Peek first row
+  auto row_opt = parquetp.peek();
+  if (row_opt.has_value()) {
+    std::string buf;
+    for (const auto& field : *row_opt) {
+      std::visit(
+          [&buf](const auto& value) {
+            using T = std::decay_t<decltype(value)>;
+            if constexpr (std::is_same_v<T, std::monostate>) {
+              buf += "None, ";
+            } else if constexpr (std::is_same_v<T, std::string>) {
+              buf += value + ", ";
+            } else {
+              buf += std::to_string(value) + ", ";
+            }
+          },
+          field);
+    }
+    world.cout() << "Peek: " << buf << std::endl;
+  }
+  world.cf_barrier();
+  world.cout0() << std::endl;
 
   // Print values
   for (int r = 0; r < world.size(); ++r) {
     if (r == world.rank()) {
       parquetp.for_all([](const auto& row) {
         // Row is a vector of parquet_parser::parquet_type_variant
-          for (const auto& field : row) {
-            std::visit([](const auto& value) {
-              using T = std::decay_t<decltype(value)>;
-                  if constexpr (std::is_same_v<T, std::monostate>) {
-                    std::cout << "None" << ", ";
-                  } else {
-                    std::cout << value << ", ";
-                  }
-            }, field);
-          }
+        for (const auto& field : row) {
+          std::visit(
+              [](const auto& value) {
+                using T = std::decay_t<decltype(value)>;
+                if constexpr (std::is_same_v<T, std::monostate>) {
+                  std::cout << "None" << ", ";
+                } else {
+                  std::cout << value << ", ";
+                }
+              },
+              field);
+        }
         std::cout << std::endl;
       });
     }
