@@ -108,11 +108,10 @@ int main(int argc, char** argv) {
         std::string                     key;
         if (row_opt.has_value()) {
           key = std::get<std::string>(row[0]);
-        } else {
-          key = std::to_string(world.rank());  // Dummy unique key
+          world.async(0, [](const auto& val) { buf.push_back(val); }, key);
         }
-        world.async(0, [](const auto& val) { buf.push_back(val); }, key);
         world.barrier();
+        YGM_ASSERT_RELEASE(buf.size() <= world.size());
 
         std::unordered_set<std::string> unique_values(buf.begin(), buf.end());
         YGM_ASSERT_RELEASE(unique_values.size() == buf.size());
