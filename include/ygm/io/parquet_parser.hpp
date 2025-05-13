@@ -386,7 +386,7 @@ class parquet_parser {
                               arrow::io::ReadableFile::Open(input_path));
       parquet_reader = parquet::ParquetFileReader::Open(input_file);
     } catch (...) {
-      std::cerr << "Error opening Parquet file: " << input_path << std::endl;
+      std::cerr << "Cannot open Parquet file: " << input_path << std::endl;
       if (throw_on_error) {
         throw;
       }
@@ -669,7 +669,7 @@ class parquet_parser {
       if (rows_read != 1) {
         std::cerr << "Error: read " << rows_read
                   << " rows (expected to read only one row)." << std::endl;
-        std::abort();
+        throw std::runtime_error("Error reading Parquet file");
       }
 
       if (values_read == 0) {
