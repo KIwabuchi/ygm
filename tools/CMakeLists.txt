@@ -26,7 +26,7 @@ if (Arrow_FOUND AND Parquet_FOUND)
     # Change the way to link Boost based on how Boost is found
     if (Boost_FOUND)
         # Found by find_package()
-        target_link_libraries(parquet_tools PUBLIC ${Boost_INCLUDE_DIRS})
+        target_include_directories(parquet_tools PUBLIC ${Boost_INCLUDE_DIRS})
     elseif (boost_POPULATED)
         # Found by FetchContent
         target_link_libraries(parquet_tools PUBLIC Boost::json)
