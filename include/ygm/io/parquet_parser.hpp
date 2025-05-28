@@ -377,22 +377,18 @@ class parquet_parser {
 
   /// Open a Parquet file and return a ParquetFileReader object.
   static std::unique_ptr<parquet::ParquetFileReader> open_file(
-      const stdfs::path &input_path, bool throw_on_error = true) {
-    // Open the Parquet file
-    std::shared_ptr<arrow::io::ReadableFile>    input_file;
+      const stdfs::path &input_path, bool rethrow_exception = true) {
     std::unique_ptr<parquet::ParquetFileReader> parquet_reader;
     try {
-      PARQUET_ASSIGN_OR_THROW(input_file,
-                              arrow::io::ReadableFile::Open(input_path));
-      parquet_reader = parquet::ParquetFileReader::Open(input_file);
+      parquet_reader = parquet::ParquetFileReader::OpenFile(input_path);
     } catch (...) {
       std::cerr << "Cannot open Parquet file: " << input_path << std::endl;
-      if (throw_on_error) {
+      if (rethrow_exception) {
         throw;
       }
       return nullptr;
     }
-    // Create a ParquetFileReader object
+
     return parquet_reader;
   }
 
@@ -425,8 +421,8 @@ class parquet_parser {
     }
 
     // Make sure the file is openable
-    const bool throw_on_error = false;
-    const bool openable       = open_file(p, throw_on_error) != nullptr;
+    const bool rethrow_exception = false;
+    const bool openable       = open_file(p, rethrow_exception) != nullptr;
     return openable;
   }
 
