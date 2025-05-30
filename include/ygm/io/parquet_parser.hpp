@@ -410,6 +410,10 @@ class parquet_parser {
 
   /// Check if the file is legit.
   bool is_file_good(const stdfs::path &p) {
+    if (p.empty()) {
+      return false;
+    }
+
     // skip hidden files
     if (p.filename().string()[0] == '.') {
       return false;
