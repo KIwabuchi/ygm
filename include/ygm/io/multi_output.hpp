@@ -14,8 +14,9 @@
 #include <memory>
 #include <sstream>
 #include <string>
-#include <ygm/container/detail/base_misc.hpp>
+
 #include <ygm/container/detail/hash_partitioner.hpp>
+#include <ygm/detail/ygm_ptr.hpp>
 
 namespace ygm::io {
 
@@ -105,6 +106,25 @@ class multi_output {
   }
 
   ygm::comm &comm() { return m_comm; }
+
+  /**
+   * @brief Access to the ygm_ptr
+   *
+   * @return `ygm_ptr` used by the container when identifying itself in `async`
+   * calls on the `ygm::comm`
+   */
+  typename ygm::ygm_ptr<self_type> get_ygm_ptr() {
+    return static_cast<self_type *>(this)->pthis;
+  }
+
+  /**
+   * @brief Const access to the ygm ptr used by the container
+   *
+   * @return `ygm_ptr` to const version of container
+   */
+  const typename ygm::ygm_ptr<self_type> get_ygm_ptr() const {
+    return static_cast<const self_type *>(this)->pthis;
+  }
 
  private:
   class buffered_ofstream {
