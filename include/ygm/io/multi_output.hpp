@@ -16,7 +16,6 @@
 #include <string>
 
 #include <ygm/container/detail/hash_partitioner.hpp>
-#include <ygm/detail/ygm_ptr.hpp>
 
 namespace ygm::io {
 
@@ -108,7 +107,7 @@ class multi_output {
   ygm::comm &comm() { return m_comm; }
 
   /**
-   * @brief Access to the ygm_ptr
+   * @brief Access to own ygm_ptr
    *
    * @return `ygm_ptr` used by the container when identifying itself in `async`
    * calls on the `ygm::comm`
@@ -118,7 +117,7 @@ class multi_output {
   }
 
   /**
-   * @brief Const access to the ygm ptr used by the container
+   * @brief Const access to own ygm ptr
    *
    * @return `ygm_ptr` to const version of container
    */
