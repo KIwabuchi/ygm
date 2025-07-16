@@ -12,6 +12,10 @@ if (${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.30")
     cmake_policy(SET CMP0167 NEW)
 endif ()
 
+if (${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.24")
+    cmake_policy(SET CMP0135 NEW)
+endif ()
+
 # ---------------------------------------------------------------------------- #
 # YGM configuration
 # ---------------------------------------------------------------------------- #
@@ -108,7 +112,6 @@ if (NOT boost_POPULATED)
         FetchContent_Declare(
             Boost
             URL ${BOOST_FETCH_URL}
-            DOWNLOAD_EXTRACT_TIMESTAMP ON
         )
         set(BOOST_INCLUDE_LIBRARIES json unordered container static_string)
         FetchContent_MakeAvailable(Boost)
