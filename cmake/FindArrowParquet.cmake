@@ -102,9 +102,14 @@ endfunction()
 # Output:
 # PIP_PYARROW_ROOT is set to the root of the pyarrow installation.
 function(install_pyarrow_in_venv)
-    setup_python_venv()
-    if (NOT PYTHON_VENV_ROOT)
-        return()
+    if (YGM_PYTHON_VENV_ROOT)
+        set(PYTHON_VENV_ROOT ${YGM_PYTHON_VENV_ROOT})
+    else ()
+        setup_python_venv()
+        # setup_python_venv() sets PYTHON_VENV_ROOT
+        if (NOT PYTHON_VENV_ROOT)
+            return()
+        endif ()
     endif ()
 
     activate_python_venv(${PYTHON_VENV_ROOT})

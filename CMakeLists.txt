@@ -33,6 +33,7 @@ option(YGM_BUILD_TESTS "Build tests" OFF)
 option(YGM_BUILD_DOCS "Adds targets for generating Doxygen and Sphinx documentation" OFF)
 option(YGM_DOCS_ONLY "Run Cmake for only generating documentation (i.e. for Read the Docs)" OFF)
 option(YGM_INSTALL_PARQUET "Installs Arrow Parquet." OFF)
+set(YGM_PYTHON_VENV_ROOT CACHE PATH "Path to a Python virtual environment root. If set, YGM will use this virtual environment for Python dependencies.")
 option(YGM_DONT_USE_MREMAP "Do not try using mremap for managing memory." OFF)
 
 #
