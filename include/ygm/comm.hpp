@@ -163,6 +163,8 @@ class comm {
 
   const detail::comm_router &router() const;
 
+  const detail::comm_stats &stats() const;
+
   /**
    * @brief Checks if current rank is rank 0
    *
