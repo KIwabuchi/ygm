@@ -22,7 +22,8 @@ int main(int argc, char **argv) {
   world.barrier();
 
   if (world.rank0()) {
-    YGM_ASSERT_RELEASE(world.stats().get_async_count() == world.size() - 1);
+    YGM_ASSERT_RELEASE(world.stats().get_async_count() ==
+                       (world.size() - 1) * num_messages);
     YGM_ASSERT_RELEASE(world.stats().get_rpc_count() ==
                        (world.size() - 1) * num_messages);
   } else {
