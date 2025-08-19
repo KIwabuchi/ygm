@@ -163,6 +163,8 @@ class comm {
 
   const detail::comm_router &router() const;
 
+  const detail::comm_stats &stats() const;
+
   /**
    * @brief Checks if current rank is rank 0
    *
@@ -361,7 +363,7 @@ class comm {
 
   bool m_in_process_receive_queue = false;
 
-  detail::comm_stats             stats;
+  detail::comm_stats             m_stats;
   const detail::layout           m_layout;
   const detail::comm_environment config = detail::comm_environment(m_layout);
   detail::comm_router            m_router;
