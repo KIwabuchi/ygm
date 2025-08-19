@@ -27,7 +27,7 @@ int main(int argc, char **argv) {
                        (world.size() - 1) * num_messages);
   } else {
     YGM_ASSERT_RELEASE(world.stats().get_async_count() == num_messages);
-    YGM_ASSERT_RELEASE(world.stats().get_rpc_count() == 1);
+    YGM_ASSERT_RELEASE(world.stats().get_rpc_count() == num_messages);
   }
   return 0;
 }
