@@ -1094,10 +1094,6 @@ inline void comm::post_new_irecv(
 template <typename Lambda, typename... PackArgs>
 inline size_t comm::pack_lambda(ygm::detail::byte_vector &packed, Lambda &&l,
                                 const PackArgs &...args) {
-  size_t                        size_before = packed.size();
-  const std::tuple<PackArgs...> tuple_args(
-      std::forward<const PackArgs>(args)...);
-
   auto dispatch_lambda = [](comm *c, cereal::YGMInputArchive *bia,
                             std::remove_reference_t<Lambda> &&l) {
     std::tuple<PackArgs...> ta;
@@ -1134,9 +1130,6 @@ inline size_t comm::pack_lambda(ygm::detail::byte_vector &packed, Lambda &&l,
  */
 template <typename Lambda, typename... PackArgs>
 inline void comm::pack_lambda_broadcast(Lambda &&l, const PackArgs &...args) {
-  const std::tuple<PackArgs...> tuple_args(
-      std::forward<const PackArgs>(args)...);
-
   auto forward_remote_and_dispatch_lambda = [](comm                    *c,
                                                cereal::YGMInputArchive *bia,
                                                std::remove_reference_t<Lambda>
@@ -1297,9 +1290,6 @@ inline size_t comm::pack_lambda_generic(ygm::detail::byte_vector &packed,
   }
 
   if constexpr (!std::is_empty<std::remove_reference_t<Lambda>>::value) {
-    // std::cout << "Non-empty lambda" << std::endl;
-    //  oarchive.saveBinary(&l, sizeof(Lambda));
-    size_t size_before = packed.size();
     packed.push_bytes(&l, sizeof(std::remove_reference_t<Lambda>));
   }
 

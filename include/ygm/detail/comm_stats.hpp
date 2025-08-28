@@ -76,17 +76,17 @@ class comm_stats {
   double get_elapsed_time() const { return MPI_Wtime() - m_time_start; }
 
  private:
-  void isend(int dest, size_t bytes) {
+  void isend([[maybe_unused]] int dest, size_t bytes) {
     m_isend_count += 1;
     m_isend_bytes += bytes;
   }
 
-  void irecv(int source, size_t bytes) {
+  void irecv([[maybe_unused]] int source, size_t bytes) {
     m_irecv_count += 1;
     m_irecv_bytes += bytes;
   }
 
-  void async(int dest) { m_async_count += 1; }
+  void async([[maybe_unused]] int dest) { m_async_count += 1; }
 
   void rpc_execute() { m_rpc_count += 1; }
 

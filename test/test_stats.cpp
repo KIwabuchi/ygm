@@ -23,12 +23,12 @@ int main(int argc, char **argv) {
 
   if (world.rank0()) {
     YGM_ASSERT_RELEASE(world.stats().get_async_count() ==
-                       (world.size() - 1) * num_messages);
+                       (size_t(world.size() - 1)) * num_messages);
     YGM_ASSERT_RELEASE(world.stats().get_rpc_count() ==
-                       (world.size() - 1) * num_messages);
+                       (size_t(world.size() - 1)) * num_messages);
   } else {
-    YGM_ASSERT_RELEASE(world.stats().get_async_count() == num_messages);
-    YGM_ASSERT_RELEASE(world.stats().get_rpc_count() == num_messages);
+    YGM_ASSERT_RELEASE(world.stats().get_async_count() == size_t(num_messages));
+    YGM_ASSERT_RELEASE(world.stats().get_rpc_count() == size_t(num_messages));
   }
   return 0;
 }

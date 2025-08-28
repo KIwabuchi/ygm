@@ -256,12 +256,12 @@ class multi_output {
     }
   }
 
+  ygm::comm                               &m_comm;
+  typename ygm::ygm_ptr<self_type>         pthis;
   fs::path                                 m_prefix_path;
   size_t                                   m_buffer_length;
   bool                                     m_append_flag;
   std::map<std::string, buffered_ofstream> m_map_file_pointers;
-  ygm::comm                               &m_comm;
-  typename ygm::ygm_ptr<self_type>         pthis;
   Partitioner                              partitioner;
 };
 }  // namespace ygm::io
