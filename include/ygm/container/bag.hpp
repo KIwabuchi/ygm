@@ -32,7 +32,7 @@ class bag : public detail::base_async_insert_value<bag<Item>, std::tuple<Item>>,
             public detail::base_misc<bag<Item>, std::tuple<Item>>,
             public detail::base_iterators<bag<Item>>,
             public detail::base_iteration_value<bag<Item>, std::tuple<Item>> {
-  friend class detail::base_misc<bag<Item>, std::tuple<Item>>;
+  friend struct detail::base_misc<bag<Item>, std::tuple<Item>>;
 
   using block_32k_option_t = boost::container::deque_options<
       boost::container::block_size<32 * 1024u>>::type;

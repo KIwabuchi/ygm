@@ -40,7 +40,7 @@ class array
                                               std::tuple<Index, Value>>,
       public detail::base_async_reduce<array<Value, Index>,
                                        std::tuple<Index, Value>> {
-  friend class detail::base_misc<array<Value, Index>, std::tuple<Index, Value>>;
+  friend struct detail::base_misc<array<Value, Index>, std::tuple<Index, Value>>;
 
  public:
   using self_type      = array<Value, Index>;
@@ -186,7 +186,7 @@ class array
     key_type local_index = prefix_sum(t.local_size(), m_comm);
 
     t.for_all([this, &local_index](const auto& value) {
-      async_insert(local_index++, value);
+      this->async_insert(local_index++, value);
     });
 
     m_comm.barrier();
@@ -230,7 +230,7 @@ class array
     resize(max_index + 1);
 
     t.for_all([this](const auto& index_value) {
-      async_insert(std::get<0>(index_value), std::get<1>(index_value));
+      this->async_insert(std::get<0>(index_value), std::get<1>(index_value));
     });
 
     m_comm.barrier();
@@ -271,7 +271,7 @@ class array
     resize(max_index + 1);
 
     t.for_all([this](const auto& index, const auto& value) {
-      async_insert(index, value);
+      this->async_insert(index, value);
     });
 
     m_comm.barrier();
@@ -304,7 +304,7 @@ class array
 
     std::for_each(t.cbegin(), t.cend(),
                   [this, &local_index](const auto& value) {
-                    async_insert(local_index++, value);
+                    this->async_insert(local_index++, value);
                   });
 
     m_comm.barrier();
@@ -344,7 +344,7 @@ class array
     resize(max_index + 1);
 
     std::for_each(t.cbegin(), t.cend(), [this](const auto& index_value) {
-      async_insert(std::get<0>(index_value), std::get<1>(index_value));
+      this->async_insert(std::get<0>(index_value), std::get<1>(index_value));
     });
   }
 

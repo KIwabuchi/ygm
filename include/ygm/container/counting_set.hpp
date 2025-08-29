@@ -29,7 +29,7 @@ class counting_set
       public detail::base_iterators<counting_set<Key>>,
       public detail::base_iteration_key_value<counting_set<Key>,
                                               std::tuple<Key, size_t>> {
-  friend class detail::base_misc<counting_set<Key>, std::tuple<Key, size_t>>;
+  friend struct detail::base_misc<counting_set<Key>, std::tuple<Key, size_t>>;
 
   using internal_container_type = map<Key, size_t>;
 
@@ -294,7 +294,7 @@ class counting_set
   mapped_type count_all() {
     mapped_type local_count{0};
     local_for_all(
-        [&local_count](const auto &key, auto &value) { local_count += value; });
+        [&local_count]([[maybe_unused]]const auto &key, auto &value) { local_count += value; });
     return ::ygm::sum(local_count, m_map.comm());
   }
 

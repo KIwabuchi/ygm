@@ -165,7 +165,7 @@ int main(int argc, char** argv) {
 
     iset.erase(to_remove);
 
-    iset.for_all([remove_size, &world](const auto& item) {
+    iset.for_all([remove_size](const auto& item) {
       YGM_ASSERT_RELEASE(item >= remove_size);
     });
 
@@ -205,7 +205,7 @@ int main(int argc, char** argv) {
 
     iset.erase(to_remove);
 
-    iset.for_all([remove_size, &world](const auto& item) {
+    iset.for_all([remove_size](const auto& item) {
       YGM_ASSERT_RELEASE(item >= remove_size);
     });
 

@@ -306,7 +306,7 @@ int main(int argc, char **argv) {
     });
 
     // Double all values in copy
-    arr_copy.for_all([&arr]([[maybe_unused]] const auto &index, auto &value) {
+    arr_copy.for_all([]([[maybe_unused]] const auto &index, auto &value) {
       value *= 2;
     });
 
