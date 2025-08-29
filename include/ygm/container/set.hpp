@@ -31,7 +31,7 @@ class set
       public detail::base_misc<set<Value>, std::tuple<Value>>,
       public detail::base_iterators<set<Value>>,
       public detail::base_iteration_value<set<Value>, std::tuple<Value>> {
-  friend class detail::base_misc<set<Value>, std::tuple<Value>>;
+  friend struct detail::base_misc<set<Value>, std::tuple<Value>>;
 
   using local_container_type =
       boost::unordered::unordered_flat_set<Value, detail::hash<Value>>;
@@ -265,7 +265,7 @@ class set
    *
    * @param fname Filename prefix to create filename used by every rank from
    */
-  void serialize(const std::string &fname) {}
+  void serialize([[maybe_unused]] const std::string &fname) {}
 
   /**
    * @brief Deserialize a set from files
@@ -274,7 +274,7 @@ class set
    * @details Currently requires the number of ranks deserializing a bag to be
    * the same as was used for serialization.
    */
-  void deserialize(const std::string &fname) {}
+  void deserialize([[maybe_unused]] const std::string &fname) {}
 
   /**
    * @brief Swap elements held locally between sets

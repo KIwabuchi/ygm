@@ -1285,7 +1285,6 @@ inline size_t comm::pack_lambda_generic(ygm::detail::byte_vector &packed,
   }
 
   if constexpr (!std::is_empty<RemoteLogicLambda>::value) {
-    size_t size_before = packed.size();
     packed.push_bytes(&rll, sizeof(RemoteLogicLambda));
   }
 

@@ -40,7 +40,7 @@ class map
       public detail::base_iterators<map<Key, Value>>,
       public detail::base_iteration_key_value<map<Key, Value>,
                                               std::tuple<Key, Value>> {
-  friend class detail::base_misc<map<Key, Value>, std::tuple<Key, Value>>;
+  friend struct detail::base_misc<map<Key, Value>, std::tuple<Key, Value>>;
 
   using local_container_type =
       boost::unordered::unordered_flat_map<Key, Value, detail::hash<Key>>;
