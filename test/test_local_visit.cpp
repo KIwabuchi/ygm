@@ -48,6 +48,7 @@ int main(int argc, char **argv) {
             YGM_ASSERT_RELEASE(v == 1);
           });
     }
+    world.barrier();
 
     world.cout0("\nMap async_visit with temporary");
     if (world.rank0()) {
@@ -60,6 +61,7 @@ int main(int argc, char **argv) {
             YGM_ASSERT_RELEASE(v == 2);
           });
     }
+    world.barrier();
 
     world.cout0("\nMap local_visit with functor object");
     if (world.rank0()) {
@@ -73,6 +75,7 @@ int main(int argc, char **argv) {
             YGM_ASSERT_RELEASE(v == 3);
           });
     }
+    world.barrier();
 
     world.cout0("\nMap local_visit with temporary");
     if (world.rank0()) {
@@ -85,6 +88,7 @@ int main(int argc, char **argv) {
             YGM_ASSERT_RELEASE(v == 4);
           });
     }
+    world.barrier();
   }
   return 0;
 }
