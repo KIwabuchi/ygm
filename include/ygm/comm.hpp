@@ -50,7 +50,7 @@ class comm {
     int32_t                                   start_id;
   };
 
-  class header_t;
+  struct header_t;
   friend class detail::interrupt_mask;
   friend class detail::comm_stats;
 
