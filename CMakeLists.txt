@@ -103,7 +103,7 @@ endif ()
 # Boost
 #
 if (NOT boost_POPULATED)
-    find_package(Boost 1.81 COMPONENTS json unordered container)
+    find_package(Boost 1.87 COMPONENTS json unordered container static_string)
     if (Boost_FOUND)
         message(STATUS ${PROJECT_NAME} " found boost include dirs: "
                        ${Boost_INCLUDE_DIRS}
