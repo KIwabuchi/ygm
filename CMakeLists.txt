@@ -103,20 +103,13 @@ endif ()
 # Boost
 #
 if (NOT boost_POPULATED)
-    find_package(Boost 1.81)
-    if (Boost_FOUND)
-        message(STATUS ${PROJECT_NAME} " found boost include dirs: "
-                       ${Boost_INCLUDE_DIRS}
-        )
-    else ()
-        message(STATUS "Fetching Boost from source")
-        FetchContent_Declare(
-            Boost
-            URL ${BOOST_FETCH_URL}
-        )
-        set(BOOST_INCLUDE_LIBRARIES json unordered container static_string)
-        FetchContent_MakeAvailable(Boost)
-    endif ()
+    message(STATUS "Fetching Boost from source")
+    FetchContent_Declare(
+        Boost
+        URL ${BOOST_FETCH_URL}
+    )
+    set(BOOST_INCLUDE_LIBRARIES json unordered container static_string)
+    FetchContent_MakeAvailable(Boost)
 endif ()
 
 #
