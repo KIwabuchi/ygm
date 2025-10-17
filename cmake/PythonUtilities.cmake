@@ -48,6 +48,7 @@ function(upgrade_pip)
     execute_process(
             COMMAND ${Python3_EXECUTABLE} -m pip install --upgrade --no-user pip
             RESULT_VARIABLE result
+            OUTPUT_QUIET
     )
     if(result EQUAL "0")
         set(PIP_UPGRADE_SUCCEEDED TRUE PARENT_SCOPE)
@@ -71,6 +72,7 @@ function(pip_install_python_package package_name)
     execute_process(
             COMMAND ${Python3_EXECUTABLE} -m pip install --no-user ${package_name}
             RESULT_VARIABLE result
+            OUTPUT_QUIET
     )
     if(result EQUAL "0")
         message(STATUS "Installed ${package_name}")
