@@ -17,7 +17,6 @@ void test_case4(const std::string& dir_name, ygm::comm& world);
 int main(int argc, char** argv) {
   ygm::comm world(&argc, &argv);
 
-  // assuming the build directory is inside the YGM root directory
   const auto test_bin_dir = std::filesystem::path(argv[0]).parent_path();
   test_case1(test_bin_dir / "data/parquet_files/case1", world);
   test_case2(test_bin_dir / "data/parquet_files/case2", world);
@@ -113,7 +112,7 @@ void test_case1(const std::string& dir_name, ygm::comm& world) {
       }
       world.cf_barrier();
 
-      // Make sure every processes read diffrent row or nothing
+      // Make sure every processes read different row or nothing
       {
         static std::vector<std::string> buf;
         const auto&                     row = *row_opt;
@@ -146,7 +145,7 @@ void test_case2(const std::string& dir_name, ygm::comm& world) {
           [col_idx](const auto& value) {
             using T = std::decay_t<decltype(value)>;
             // Only the first column is valid (flat)
-            // Non-flat or unsupported columns return std::monostate
+            // Non-flat or unsupported columns is treated as std::monostate
             if constexpr (std::is_same_v<T, std::monostate>) {
               YGM_ASSERT_RELEASE(col_idx != 0);
             } else {
