@@ -44,10 +44,10 @@ function(upgrade_pip)
         return()
     endif()
 
+    message(STATUS "Upgrading pip in Python interpreter: ${Python3_EXECUTABLE}")
     execute_process(
             COMMAND ${Python3_EXECUTABLE} -m pip install --upgrade --no-user pip
             RESULT_VARIABLE result
-            OUTPUT_QUIET
     )
     if(result EQUAL "0")
         set(PIP_UPGRADE_SUCCEEDED TRUE PARENT_SCOPE)
@@ -66,10 +66,11 @@ function(pip_install_python_package package_name)
         return()
     endif()
 
+    message(STATUS "Installing Python package: ${package_name}")
+    message(STATUS "Using Python executable: ${Python3_EXECUTABLE}")
     execute_process(
             COMMAND ${Python3_EXECUTABLE} -m pip install --no-user ${package_name}
             RESULT_VARIABLE result
-            OUTPUT_QUIET
     )
     if(result EQUAL "0")
         message(STATUS "Installed ${package_name}")

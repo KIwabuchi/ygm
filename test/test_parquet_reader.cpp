@@ -9,16 +9,26 @@
 #include <ygm/comm.hpp>
 #include <ygm/io/parquet_parser.hpp>
 
+void test_case1(const std::string& dir_name, ygm::comm& world);
+void test_case2(const std::string& dir_name, ygm::comm& world);
+void test_case3(const std::string& dir_name, ygm::comm& world);
+
 int main(int argc, char** argv) {
   ygm::comm world(&argc, &argv);
 
   // assuming the build directory is inside the YGM root directory
-  const std::string dir_name = "data/parquet_files/";
+  const auto test_bin_dir = std::filesystem::path(argv[0]).parent_path();
+  test_case1(test_bin_dir / "data/parquet_files/case1", world);
+  test_case2(test_bin_dir / "data/parquet_files/case2", world);
+  test_case3(test_bin_dir / "data/parquet_files/case3", world);
 
-  //
+  return 0;
+}
+
+void test_case1(const std::string& dir_name, ygm::comm& world) {
   // Test number of columns and rows in files
   {
-    // parquet_parser assumes files have identical scehma
+    // parquet_parser assumes files have identical schema
     ygm::io::parquet_parser parquetp(world, {dir_name});
 
     YGM_ASSERT_RELEASE(parquetp.num_files() == 3);
@@ -118,5 +128,64 @@ int main(int argc, char** argv) {
       }
     }
   }
-  return 0;
+}
+
+// Test case file contains multiple non-flat column patterns
+void test_case2(const std::string& dir_name, ygm::comm& world) {
+  ygm::io::parquet_parser parquetp(world, {dir_name});
+
+  YGM_ASSERT_RELEASE(parquetp.num_files() == 1);
+  YGM_ASSERT_RELEASE(parquetp.num_rows() == 2);
+  YGM_ASSERT_RELEASE(parquetp.get_schema().size() == 8);
+
+  parquetp.for_all([](const auto& row) {
+    for (int col_idx = 0; col_idx < static_cast<int>(row.size()); ++col_idx) {
+        std::visit(
+          [col_idx](const auto& value) {
+            using T = std::decay_t<decltype(value)>;
+            // Only the first column is valid (flat)
+            // Non-flat or unsupported columns return std::monostate
+            if constexpr (std::is_same_v<T, std::monostate>) {
+              YGM_ASSERT_RELEASE(col_idx != 0);
+            } else {
+              YGM_ASSERT_RELEASE(col_idx == 0);
+            }
+          },
+          row[col_idx]);
+    }
+  });
+}
+
+// Some values are NONE
+void test_case3(const std::string& dir_name, ygm::comm& world) {
+  ygm::io::parquet_parser parquetp(world, {dir_name});
+
+  YGM_ASSERT_RELEASE(parquetp.num_files() == 1);
+  YGM_ASSERT_RELEASE(parquetp.num_rows() == 2);
+  YGM_ASSERT_RELEASE(parquetp.get_schema().size() == 2);
+
+
+  parquetp.for_all([](const auto& row) {
+    for (int col_idx = 0; col_idx < static_cast<int>(row.size()); ++col_idx) {
+        std::visit(
+          [row, col_idx](const auto& value) {
+            using T = std::decay_t<decltype(value)>;
+            // [0][0] = 10
+            // [0][1] = None
+            // [1][0] = None
+            // [1][1] = 20
+                if constexpr (std::is_same_v<T, std::monostate>) {
+                  YGM_ASSERT_RELEASE((col_idx == 1 && std::get<int32_t>(row[0]) == 10) ||
+                                     (col_idx == 0 && std::get<int32_t>(row[1]) == 20));
+                } else if constexpr (std::is_same_v<T, int32_t>) {
+                  YGM_ASSERT_RELEASE((col_idx == 0 && value == 10) ||
+                                     (col_idx == 1 && value == 20));
+                } else {
+                  // Unexpected type
+                  YGM_ASSERT_RELEASE(false);
+                }
+          },
+          row[col_idx]);
+    }
+  });
 }

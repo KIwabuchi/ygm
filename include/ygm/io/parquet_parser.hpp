@@ -329,6 +329,12 @@ class parquet_parser {
   size_t num_rows() const { return m_num_rows; }
 
  private:
+  // Check if the column is flat (non-nested)
+  static bool is_flat_column(const parquet::ColumnDescriptor *col) {
+    return col->max_repetition_level() == 0 &&
+           col->path()->ToDotVector().size() == 1;
+  }
+
   // Open Parquet files and read schema.
   void init(const std::vector<std::string> &stringpaths,
             const bool                      recursive = false) {
@@ -449,12 +455,14 @@ class parquet_parser {
       auto ptype = detail::parquet_data_type{column->physical_type()};
       // Check if the type is supported
       bool unsupported = !detail::is_supported_parquet_type(ptype.type);
+
       // Check if the column is flat
-      if (column->max_definition_level() != 1 ||
-          column->max_repetition_level() != 0) {
+      if (!is_flat_column(column)) {
+        m_comm.cerr0() << "Unsupported column (not flat): " << column->name()
+                       << ", " << column->path()->ToDotString() << std::endl;
         // The column is not flat, which is not supported by this parser.
         unsupported = true;
-        // Memo: for definition and repetition levels, see
+        // Memo: for repetition levels, see
         // https://blog.x.com/engineering/en_us/a/2013/dremel-made-simple-with-parquet
       }
       m_col_schema[i] = {
